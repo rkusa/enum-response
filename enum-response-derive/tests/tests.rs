@@ -113,7 +113,7 @@ fn override_reason() {
 }
 
 #[test]
-fn override_reason_from_tuple_field() {
+fn override_reason_from_tuple_field_int() {
     #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(reason_field = 0)]
@@ -125,6 +125,29 @@ fn override_reason_from_tuple_field() {
         #[response(reason_field = 1)]
         Inbetween(&'a str, &'a str, &'a str),
         #[response(reason_field = 2)]
+        Last(&'a str, &'a str, &'a str),
+    }
+
+    assert_eq!(Error::One(String::from("a")).reason(), Some("a"));
+    assert_eq!(Error::Two("a", "b").reason(), Some("b"));
+    assert_eq!(Error::First("a", "b", "c").reason(), Some("a"));
+    assert_eq!(Error::Inbetween("a", "b", "c").reason(), Some("b"));
+    assert_eq!(Error::Last("a", "b", "c").reason(), Some("c"));
+}
+
+#[test]
+fn override_reason_from_tuple_field_string() {
+    #[derive(Debug, EnumResponse)]
+    enum Error<'a> {
+        #[response(reason_field = "0")]
+        One(String),
+        #[response(reason_field = "1")]
+        Two(&'a str, &'a str),
+        #[response(reason_field = "0")]
+        First(&'a str, &'a str, &'a str),
+        #[response(reason_field = "1")]
+        Inbetween(&'a str, &'a str, &'a str),
+        #[response(reason_field = "2")]
         Last(&'a str, &'a str, &'a str),
     }
 
