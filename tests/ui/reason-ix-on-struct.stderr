@@ -1,0 +1,8 @@
+error: proc-macro derive panicked
+ --> $DIR/reason-ix-on-struct.rs:4:10
+  |
+4 | #[derive(ErrorStatus)]
+  |          ^^^^^^^^^^^
+  |
+  = help: message: reason index only works for tuple variants
+
