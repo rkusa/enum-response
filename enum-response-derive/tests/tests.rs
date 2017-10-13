@@ -1,12 +1,12 @@
 #![feature(attr_literals)]
 
 #[macro_use]
-extern crate api_error_derive;
-extern crate api_error;
+extern crate enum_response_derive;
+extern crate enum_response;
 extern crate compiletest_rs as compiletest;
 
 use std::path::PathBuf;
-use api_error::{ErrorStatus, StatusCode};
+use enum_response::{EnumResponse, StatusCode};
 
 fn run_mode(mode: &'static str) {
     let mut config = compiletest::Config::default();
@@ -25,7 +25,7 @@ fn compile_test() {
 
 #[test]
 fn default_internal_server_error() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         Unit,
         Tuple(&'a str),
@@ -47,7 +47,7 @@ fn default_internal_server_error() {
 
 #[test]
 fn override_status_code_int() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(status = 400)]
         Unit,
@@ -66,7 +66,7 @@ fn override_status_code_int() {
 
 #[test]
 fn override_status_code_string() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(status = "402")]
         Unit,
@@ -82,7 +82,7 @@ fn override_status_code_string() {
 
 #[test]
 fn override_status_name() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(status = "Unauthorized")]
         Unit,
@@ -98,7 +98,7 @@ fn override_status_name() {
 
 #[test]
 fn override_reason() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(reason = "A")]
         Unit,
@@ -114,7 +114,7 @@ fn override_reason() {
 
 #[test]
 fn override_reason_from_tuple_field() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(reason_field = 0)]
         One(String),
@@ -137,7 +137,7 @@ fn override_reason_from_tuple_field() {
 
 #[test]
 fn struct_variant() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         Struct { s: &'a str },
     }
@@ -148,7 +148,7 @@ fn struct_variant() {
 
 #[test]
 fn override_reason_from_struct_field() {
-    #[derive(Debug, ErrorStatus)]
+    #[derive(Debug, EnumResponse)]
     enum Error<'a> {
         #[response(reason_field = "a")]
         First { a: &'a str, b: &'a str, c: &'a str },

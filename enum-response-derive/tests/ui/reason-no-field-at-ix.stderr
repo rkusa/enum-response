@@ -1,8 +1,8 @@
 error: proc-macro derive panicked
  --> $DIR/reason-no-field-at-ix.rs:4:10
   |
-4 | #[derive(ErrorStatus)]
-  |          ^^^^^^^^^^^
+4 | #[derive(EnumResponse)]
+  |          ^^^^^^^^^^^^
   |
   = help: message: [error(reason_field = 1)]: No tuple field at 1 found for Tuple
 

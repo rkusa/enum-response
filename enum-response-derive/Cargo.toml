@@ -1,0 +1,15 @@
+[package]
+name = "enum-response-derive"
+version = "0.1.0"
+authors = ["Markus Ast <m@rkusa.st>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "0.11"
+quote = "0.3"
+enum-response = { path = "../enum-response" }
+
+[dev-dependencies]
+compiletest_rs = "0.3"

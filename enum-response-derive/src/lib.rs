@@ -1,19 +1,17 @@
-// #[recursion_limit="128"]
-
 extern crate proc_macro;
 extern crate syn;
 #[macro_use]
 extern crate quote;
-extern crate api_error;
+extern crate enum_response;
 
 use std::str::FromStr;
 
-use api_error::StatusCode;
+use enum_response::StatusCode;
 use proc_macro::TokenStream;
 use quote::Tokens;
 use syn::{Body, VariantData, MetaItem, NestedMetaItem, Lit, Ident};
 
-#[proc_macro_derive(ErrorStatus, attributes(response))]
+#[proc_macro_derive(EnumResponse, attributes(response))]
 pub fn enum_from(input: TokenStream) -> TokenStream {
     // construct a string representation of the type definition
     let s = input.to_string();
@@ -40,7 +38,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
         Body::Enum(ref variants) => variants,
         _ => {
             panic!(
-                "#[derive(EnumFrom)] can only be applied to enums. {} is not an enum.",
+                "#[derive(EnumResponse)] can only be applied to enums. {} is not an enum.",
                 enum_name
             )
         }
@@ -139,7 +137,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
         if let Some(status) = status {
             let pattern = variant_pattern(enum_name, variant_name, &variant.data);
             status_patterns.push(quote! {
-                #pattern => ::api_error::StatusCode::#status,
+                #pattern => ::enum_response::StatusCode::#status,
             });
         }
 
@@ -202,7 +200,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
 
     if status_patterns.len() < variants.len() {
         status_patterns.push(quote! {
-            _ => ::api_error::StatusCode::InternalServerError,
+            _ => ::enum_response::StatusCode::InternalServerError,
         });
     }
 
@@ -219,10 +217,10 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
     reason_tokens.append_all(reason_patterns);
 
     quote! {
-        impl #impl_generics ::api_error::ErrorStatus for #enum_name #ty_generics
+        impl #impl_generics ::enum_response::EnumResponse for #enum_name #ty_generics
             #where_clause
         {
-            fn status(&self) -> ::api_error::StatusCode {
+            fn status(&self) -> ::enum_response::StatusCode {
                 match *self {
                     #status_tokens
                 }
