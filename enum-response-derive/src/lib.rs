@@ -1,47 +1,42 @@
+extern crate enum_response;
 extern crate proc_macro;
-extern crate syn;
 #[macro_use]
 extern crate quote;
-extern crate enum_response;
+extern crate syn;
 
 use std::str::FromStr;
 
 use enum_response::StatusCode;
 use proc_macro::TokenStream;
 use quote::Tokens;
-use syn::{Body, VariantData, MetaItem, NestedMetaItem, Lit, Ident};
+use syn::{Data, DataEnum, Fields, Ident, Lit, Meta, MetaList, MetaNameValue, NestedMeta};
 
 #[proc_macro_derive(EnumResponse, attributes(response))]
 pub fn enum_from(input: TokenStream) -> TokenStream {
-    // construct a string representation of the type definition
-    let s = input.to_string();
-
     // parse the string representation
-    let ast = syn::parse_derive_input(&s).unwrap();
+    let ast = syn::parse(input).unwrap();
 
     // derive the implementations
     let gen = derive(&ast);
 
     // return the generated impl
-    gen.parse().unwrap()
+    gen.into()
 }
 
-enum ReasonSource<'a> {
-    String(&'a str),
+enum ReasonSource {
+    String(String),
     TupleField(usize),
-    StructField(&'a str),
+    StructField(String),
 }
 
 fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
     let enum_name = &ast.ident;
-    let variants = match ast.body {
-        Body::Enum(ref variants) => variants,
-        _ => {
-            panic!(
-                "#[derive(EnumResponse)] can only be applied to enums. {} is not an enum.",
-                enum_name
-            )
-        }
+    let variants = match ast.data {
+        Data::Enum(DataEnum { ref variants, .. }) => variants,
+        _ => panic!(
+            "#[derive(EnumResponse)] can only be applied to enums. {} is not an enum.",
+            enum_name
+        ),
     };
 
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
@@ -54,88 +49,104 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
         let mut status = None;
         let mut reason = None;
 
-        for attr in variant.attrs.iter() {
-            let items = match attr.value {
-                MetaItem::List(ref k, ref items) if k == "response" => items,
-                _ => continue,
-            };
-            for item in items {
-                let (name, val) = match item {
-                    &NestedMetaItem::MetaItem(MetaItem::NameValue(ref name, ref val)) => {
-                        (name, val)
-                    }
-                    &NestedMetaItem::MetaItem(MetaItem::Word(ref name)) => {
-                        panic!("unknown response field attribute `{}`", name)
-                    }
-                    &NestedMetaItem::MetaItem(MetaItem::List(ref name, _)) => {
-                        panic!("unknown response field attribute `{}`", name)
-                    }
-                    &NestedMetaItem::Literal(_) => {
-                        panic!(
-                            "unexpected literal in response field attribute of `{}`",
-                            variant_name
-                        );
-                    }
-                };
+        for attr in &variant.attrs {
+            // TODO: unwrap
+            match attr.interpret_meta().unwrap() {
+                Meta::List(MetaList {
+                    ref ident,
+                    ref nested,
+                    ..
+                }) if ident == "response" =>
+                {
+                    // TODO: check paren_token?
+                    for item in nested {
+                        let (name, val) = match *item {
+                            NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                                ref ident,
+                                ref lit,
+                                ..
+                            })) => {
+                                // TODO: check eq_token?
+                                (ident, lit)
+                            }
+                            NestedMeta::Meta(Meta::Word(ref name)) => {
+                                panic!("unknown response field attribute `{}`", name)
+                            }
+                            NestedMeta::Meta(Meta::List(MetaList { ref ident, .. })) => {
+                                panic!("unknown response field attribute `{}`", ident)
+                            }
+                            NestedMeta::Literal(_) => {
+                                panic!(
+                                    "unexpected literal in response field attribute of `{}`",
+                                    variant_name
+                                );
+                            }
+                        };
 
-                match name.as_ref() {
-                    "status" => {
-                        status = Some(Ident::new(match val {
-                            &Lit::Int(status, _) => status_from_u16(status as u16),
-                            &Lit::Str(ref name, _) => {
-                                if let Ok(status) = u16::from_str(name) {
-                                    status_from_u16(status)
-                                } else {
-                                    name.clone()
-                                }
+                        match name.as_ref() {
+                            "status" => {
+                                status = Some(Ident::from(match val {
+                                    &Lit::Int(ref status) => status_from_u16(status.value() as u16),
+                                    &Lit::Str(ref name) => {
+                                        let name = name.value();
+                                        if let Ok(status) = u16::from_str(name.as_str()) {
+                                            status_from_u16(status)
+                                        } else {
+                                            name
+                                        }
+                                    }
+                                    _ => {
+                                        panic!(
+                                            "response reason attribute value must be \
+                                             of type int or string"
+                                        );
+                                    }
+                                }));
                             }
-                            _ => {
-                                panic!(
-                                    "response reason attribute value must be \
-                                    of type int or string"
-                                );
+                            "reason" => {
+                                match val {
+                                    &Lit::Str(ref s) => {
+                                        reason = Some(ReasonSource::String(s.value()));
+                                    }
+                                    _ => {
+                                        panic!(
+                                            "response reason attribute value must be \
+                                             of type string"
+                                        );
+                                    }
+                                };
                             }
-                        }));
+                            "reason_field" => {
+                                match val {
+                                    &Lit::Int(ref ix) => {
+                                        reason =
+                                            Some(ReasonSource::TupleField(ix.value() as usize));
+                                    }
+                                    &Lit::Str(ref s) => {
+                                        let s = s.value();
+                                        reason = Some(match usize::from_str(&s) {
+                                            Ok(ix) => ReasonSource::TupleField(ix as usize),
+                                            Err(_) => ReasonSource::StructField(s),
+                                        });
+                                    }
+                                    _ => {
+                                        panic!(
+                                            "response reason attribute value must be \
+                                             of type int or string"
+                                        );
+                                    }
+                                };
+                            }
+                            _ => panic!("unknown response field attribute `{}`", name),
+                        }
                     }
-                    "reason" => {
-                        match val {
-                            &Lit::Str(ref s, _) => {
-                                reason = Some(ReasonSource::String(s));
-                            }
-                            _ => {
-                                panic!(
-                                    "response reason attribute value must be \
-                                    of type string"
-                                );
-                            }
-                        };
-                    }
-                    "reason_field" => {
-                        match val {
-                            &Lit::Int(ix, _) => {
-                                reason = Some(ReasonSource::TupleField(ix as usize));
-                            }
-                            &Lit::Str(ref s, _) => {
-                                reason = Some(match usize::from_str(s) {
-                                    Ok(ix) => ReasonSource::TupleField(ix as usize),
-                                    Err(_) => ReasonSource::StructField(s),
-                                });
-                            }
-                            _ => {
-                                panic!(
-                                    "response reason attribute value must be \
-                                    of type int or string"
-                                );
-                            }
-                        };
-                    }
-                    _ => panic!("unknown response field attribute `{}`", name),
                 }
+                _ => continue,
             }
         }
 
         if let Some(status) = status {
-            let pattern = variant_pattern(enum_name, variant_name, &variant.data);
+            let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
             status_patterns.push(quote! {
                 #pattern => ::enum_response::StatusCode::#status,
             });
@@ -143,28 +154,30 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
 
         match reason {
             Some(ReasonSource::String(reason)) => {
-                let pattern = variant_pattern(enum_name, variant_name, &variant.data);
+                let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
                 reason_patterns.push(quote! {
                     #pattern => Some(#reason),
                 });
             }
             Some(ReasonSource::TupleField(ix)) => {
-                let fields = match variant.data {
-                    VariantData::Tuple(ref fields) => fields,
+                let fields = match variant.fields {
+                    Fields::Unnamed(syn::FieldsUnnamed { ref unnamed, .. }) => unnamed,
                     _ => panic!("reason index only works for tuple variants"),
                 };
 
-                if fields.get(ix).is_none() {
+                if fields.iter().nth(ix).is_none() {
                     panic!(
                         "[error(reason_field = {})]: No tuple field at {} found for {}",
-                        ix,
-                        ix,
-                        variant_name
+                        ix, ix, variant_name
                     );
                 }
 
                 let fields = fields.iter().enumerate().map(|(i, _)| {
-                    Ident::new(if i == ix { "ref reason" } else { "_" })
+                    if i == ix {
+                        quote! { ref reason }
+                    } else {
+                        quote! { _ }
+                    }
                 });
 
                 reason_patterns.push(quote! {
@@ -172,15 +185,17 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                 });
             }
             Some(ReasonSource::StructField(field_name)) => {
-                let fields = match variant.data {
-                    VariantData::Struct(ref fields) => fields,
+                let fields = match variant.fields {
+                    Fields::Named(syn::FieldsNamed { ref named, .. }) => named,
                     _ => panic!("reason field only works for struct variants"),
                 };
 
-                let field = fields.iter().find(|f| if let Some(ref name) = f.ident {
-                    name == field_name
-                } else {
-                    false
+                let field = fields.iter().find(|f| {
+                    if let Some(ref name) = f.ident {
+                        name == &field_name
+                    } else {
+                        false
+                    }
                 });
                 if let Some(field) = field {
                     let field_name = &field.ident;
@@ -239,15 +254,15 @@ fn status_from_u16(status: u16) -> String {
     format!("{:?}", StatusCode::try_from(status).unwrap())
 }
 
-fn variant_pattern(enum_name: &Ident, variant_name: &Ident, variant_data: &VariantData) -> Tokens {
+fn variant_pattern(enum_name: &Ident, variant_name: &Ident, variant_data: &Fields) -> Tokens {
     match variant_data {
-        &VariantData::Unit => {
+        &Fields::Unit => {
             quote! { #enum_name::#variant_name }
         }
-        &VariantData::Tuple(_) => {
+        &Fields::Unnamed(_) => {
             quote! { #enum_name::#variant_name(..) }
         }
-        &VariantData::Struct(_) => {
+        &Fields::Named(_) => {
             quote! { #enum_name::#variant_name { .. } }
         }
     }

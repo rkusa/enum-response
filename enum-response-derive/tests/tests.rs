@@ -1,9 +1,9 @@
 #![feature(attr_literals)]
 
+extern crate compiletest_rs as compiletest;
+extern crate enum_response;
 #[macro_use]
 extern crate enum_response_derive;
-extern crate enum_response;
-extern crate compiletest_rs as compiletest;
 
 use std::path::PathBuf;
 use enum_response::{EnumResponse, StatusCode};

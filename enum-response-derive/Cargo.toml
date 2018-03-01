@@ -7,8 +7,8 @@ authors = ["Markus Ast <m@rkusa.st>"]
 proc-macro = true
 
 [dependencies]
-syn = "0.11"
-quote = "0.3"
+syn = "0.12"
+quote = "0.4"
 enum-response = { path = "../enum-response" }
 
 [dev-dependencies]
