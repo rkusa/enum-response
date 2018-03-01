@@ -23,7 +23,7 @@ pub fn enum_from(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-enum ReasonSource {
+enum ValueSource {
     String(String),
     TupleField(usize),
     StructField(String),
@@ -85,7 +85,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
 
                         match name.as_ref() {
                             "status" => {
-                                status = Some(Ident::from(match val {
+                                status = Some(ValueSource::String(match val {
                                     &Lit::Int(ref status) => status_from_u16(status.value() as u16),
                                     &Lit::Str(ref name) => {
                                         let name = name.value();
@@ -97,16 +97,36 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                                     }
                                     _ => {
                                         panic!(
-                                            "response reason attribute value must be \
+                                            "response status attribute value must be \
                                              of type int or string"
                                         );
                                     }
                                 }));
                             }
+                            "status_field" => {
+                                match val {
+                                    &Lit::Int(ref ix) => {
+                                        status = Some(ValueSource::TupleField(ix.value() as usize));
+                                    }
+                                    &Lit::Str(ref s) => {
+                                        let s = s.value();
+                                        status = Some(match usize::from_str(&s) {
+                                            Ok(ix) => ValueSource::TupleField(ix as usize),
+                                            Err(_) => ValueSource::StructField(s),
+                                        });
+                                    }
+                                    _ => {
+                                        panic!(
+                                            "response status attribute value must be \
+                                             of type int or string"
+                                        );
+                                    }
+                                };
+                            }
                             "reason" => {
                                 match val {
                                     &Lit::Str(ref s) => {
-                                        reason = Some(ReasonSource::String(s.value()));
+                                        reason = Some(ValueSource::String(s.value()));
                                     }
                                     _ => {
                                         panic!(
@@ -119,14 +139,13 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                             "reason_field" => {
                                 match val {
                                     &Lit::Int(ref ix) => {
-                                        reason =
-                                            Some(ReasonSource::TupleField(ix.value() as usize));
+                                        reason = Some(ValueSource::TupleField(ix.value() as usize));
                                     }
                                     &Lit::Str(ref s) => {
                                         let s = s.value();
                                         reason = Some(match usize::from_str(&s) {
-                                            Ok(ix) => ReasonSource::TupleField(ix as usize),
-                                            Err(_) => ReasonSource::StructField(s),
+                                            Ok(ix) => ValueSource::TupleField(ix as usize),
+                                            Err(_) => ValueSource::StructField(s),
                                         });
                                     }
                                     _ => {
@@ -145,21 +164,77 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
             }
         }
 
-        if let Some(status) = status {
-            let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
-            status_patterns.push(quote! {
-                #pattern => ::enum_response::StatusCode::#status,
-            });
+        // TODO handling of status and reason are redundant
+
+        match status {
+            Some(ValueSource::String(ref status)) => {
+                let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
+                let status = Ident::from(status.as_str());
+                status_patterns.push(quote! {
+                    #pattern => ::enum_response::StatusCode::#status,
+                });
+            }
+            Some(ValueSource::TupleField(ix)) => {
+                let fields = match variant.fields {
+                    Fields::Unnamed(syn::FieldsUnnamed { ref unnamed, .. }) => unnamed,
+                    _ => panic!("status index only works for tuple variants"),
+                };
+
+                if fields.iter().nth(ix).is_none() {
+                    panic!(
+                        "[error(status_field = {})]: No tuple field at {} found for {}",
+                        ix, ix, variant_name
+                    );
+                }
+
+                let fields = fields.iter().enumerate().map(|(i, _)| {
+                    if i == ix {
+                        quote! { status }
+                    } else {
+                        quote! { _ }
+                    }
+                });
+
+                status_patterns.push(quote! {
+                    #enum_name::#variant_name(#(#fields),*) => status,
+                });
+            }
+            Some(ValueSource::StructField(field_name)) => {
+                let fields = match variant.fields {
+                    Fields::Named(syn::FieldsNamed { ref named, .. }) => named,
+                    _ => panic!("status field only works for struct variants"),
+                };
+
+                let field = fields.iter().find(|f| {
+                    if let Some(ref name) = f.ident {
+                        name == &field_name
+                    } else {
+                        false
+                    }
+                });
+                if let Some(field) = field {
+                    let field_name = &field.ident;
+                    status_patterns.push(quote! {
+                        #enum_name::#variant_name { #field_name, .. } => #field_name,
+                    });
+                } else {
+                    panic!(
+                        "#[response(status_field = \"{}\")] struct field does not exist",
+                        field_name
+                    );
+                }
+            }
+            None => {}
         }
 
         match reason {
-            Some(ReasonSource::String(reason)) => {
+            Some(ValueSource::String(reason)) => {
                 let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
                 reason_patterns.push(quote! {
                     #pattern => Some(#reason),
                 });
             }
-            Some(ReasonSource::TupleField(ix)) => {
+            Some(ValueSource::TupleField(ix)) => {
                 let fields = match variant.fields {
                     Fields::Unnamed(syn::FieldsUnnamed { ref unnamed, .. }) => unnamed,
                     _ => panic!("reason index only works for tuple variants"),
@@ -184,7 +259,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                     #enum_name::#variant_name(#(#fields),*) => Some(reason),
                 });
             }
-            Some(ReasonSource::StructField(field_name)) => {
+            Some(ValueSource::StructField(field_name)) => {
                 let fields = match variant.fields {
                     Fields::Named(syn::FieldsNamed { ref named, .. }) => named,
                     _ => panic!("reason field only works for struct variants"),

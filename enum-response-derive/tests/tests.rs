@@ -113,6 +113,17 @@ fn override_reason() {
 }
 
 #[test]
+fn struct_variant() {
+    #[derive(Debug, EnumResponse)]
+    enum Error<'a> {
+        Struct { s: &'a str },
+    }
+    let err = Error::Struct { s: "" };
+    assert_eq!(err.status(), StatusCode::InternalServerError);
+    assert_eq!(err.reason(), Some("Internal Server Error"));
+}
+
+#[test]
 fn override_reason_from_tuple_field_int() {
     #[derive(Debug, EnumResponse)]
     enum Error<'a> {
@@ -159,17 +170,6 @@ fn override_reason_from_tuple_field_string() {
 }
 
 #[test]
-fn struct_variant() {
-    #[derive(Debug, EnumResponse)]
-    enum Error<'a> {
-        Struct { s: &'a str },
-    }
-    let err = Error::Struct { s: "" };
-    assert_eq!(err.status(), StatusCode::InternalServerError);
-    assert_eq!(err.reason(), Some("Internal Server Error"));
-}
-
-#[test]
 fn override_reason_from_struct_field() {
     #[derive(Debug, EnumResponse)]
     enum Error<'a> {
@@ -203,5 +203,118 @@ fn override_reason_from_struct_field() {
             c: "3",
         }.reason(),
         Some("3")
+    );
+}
+
+#[test]
+fn override_status_code_from_tuple_field_int() {
+    #[derive(Debug, EnumResponse)]
+    enum Error {
+        #[response(status_field = 0)]
+        One(StatusCode),
+        #[response(status_field = 1)]
+        Two((), StatusCode),
+        #[response(status_field = 0)]
+        First(StatusCode, (), ()),
+        #[response(status_field = 1)]
+        Inbetween((), StatusCode, ()),
+        #[response(status_field = 2)]
+        Last((), (), StatusCode),
+    }
+
+    assert_eq!(
+        Error::One(StatusCode::Forbidden).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Two((), StatusCode::Forbidden).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::First(StatusCode::Forbidden, (), ()).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Inbetween((), StatusCode::Forbidden, ()).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Last((), (), StatusCode::Forbidden).status(),
+        StatusCode::Forbidden
+    );
+}
+
+#[test]
+fn override_status_code_from_tuple_field_string() {
+    #[derive(Debug, EnumResponse)]
+    enum Error {
+        #[response(status_field = "0")]
+        One(StatusCode),
+        #[response(status_field = "1")]
+        Two((), StatusCode),
+        #[response(status_field = "0")]
+        First(StatusCode, (), ()),
+        #[response(status_field = "1")]
+        Inbetween((), StatusCode, ()),
+        #[response(status_field = "2")]
+        Last((), (), StatusCode),
+    }
+
+    assert_eq!(
+        Error::One(StatusCode::Forbidden).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Two((), StatusCode::Forbidden).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::First(StatusCode::Forbidden, (), ()).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Inbetween((), StatusCode::Forbidden, ()).status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Last((), (), StatusCode::Forbidden).status(),
+        StatusCode::Forbidden
+    );
+}
+
+#[test]
+fn override_status_code_from_struct_field() {
+    #[derive(Debug, EnumResponse)]
+    enum Error {
+        #[response(status_field = "a")]
+        First { a: StatusCode, b: (), c: () },
+        #[response(status_field = "b")]
+        Second { a: (), b: StatusCode, c: () },
+        #[response(status_field = "c")]
+        Third { a: (), b: (), c: StatusCode },
+    }
+    assert_eq!(
+        Error::First {
+            a: StatusCode::Forbidden,
+            b: (),
+            c: (),
+        }.status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Second {
+            a: (),
+            b: StatusCode::Forbidden,
+            c: (),
+        }.status(),
+        StatusCode::Forbidden
+    );
+    assert_eq!(
+        Error::Third {
+            a: (),
+            b: (),
+            c: StatusCode::Forbidden,
+        }.status(),
+        StatusCode::Forbidden
     );
 }
