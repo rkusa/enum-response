@@ -31,13 +31,13 @@ fn default_internal_server_error() {
         Tuple(&'a str),
         Struct { s: &'a str },
     }
-    assert_eq!(Error::Unit.status(), StatusCode::InternalServerError);
+    assert_eq!(Error::Unit.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(Error::Unit.reason(), Some("Internal Server Error"));
-    assert_eq!(Error::Tuple("").status(), StatusCode::InternalServerError);
+    assert_eq!(Error::Tuple("").status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(Error::Tuple("").reason(), Some("Internal Server Error"));
     assert_eq!(
         Error::Struct { s: "" }.status(),
-        StatusCode::InternalServerError
+        StatusCode::INTERNAL_SERVER_ERROR
     );
     assert_eq!(
         Error::Struct { s: "" }.reason(),
@@ -56,11 +56,11 @@ fn override_status_code_int() {
         #[response(status = 402)]
         Struct { s: &'a str },
     }
-    assert_eq!(Error::Unit.status(), StatusCode::BadRequest);
-    assert_eq!(Error::Tuple("").status(), StatusCode::Unauthorized);
+    assert_eq!(Error::Unit.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(Error::Tuple("").status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         Error::Struct { s: "" }.status(),
-        StatusCode::PaymentRequired
+        StatusCode::PAYMENT_REQUIRED
     );
 }
 
@@ -75,25 +75,25 @@ fn override_status_code_string() {
         #[response(status = "401")]
         Struct { s: &'a str },
     }
-    assert_eq!(Error::Unit.status(), StatusCode::PaymentRequired);
-    assert_eq!(Error::Tuple("").status(), StatusCode::BadRequest);
-    assert_eq!(Error::Struct { s: "" }.status(), StatusCode::Unauthorized);
+    assert_eq!(Error::Unit.status(), StatusCode::PAYMENT_REQUIRED);
+    assert_eq!(Error::Tuple("").status(), StatusCode::BAD_REQUEST);
+    assert_eq!(Error::Struct { s: "" }.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[test]
 fn override_status_name() {
     #[derive(Debug, EnumResponse)]
     enum Error<'a> {
-        #[response(status = "Unauthorized")]
+        #[response(status = "UNAUTHORIZED")]
         Unit,
-        #[response(status = "PaymentRequired")]
+        #[response(status = "PAYMENT_REQUIRED")]
         Tuple(&'a str),
-        #[response(status = "BadRequest")]
+        #[response(status = "BAD_REQUEST")]
         Struct { s: &'a str },
     }
-    assert_eq!(Error::Unit.status(), StatusCode::Unauthorized);
-    assert_eq!(Error::Tuple("").status(), StatusCode::PaymentRequired);
-    assert_eq!(Error::Struct { s: "" }.status(), StatusCode::BadRequest);
+    assert_eq!(Error::Unit.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(Error::Tuple("").status(), StatusCode::PAYMENT_REQUIRED);
+    assert_eq!(Error::Struct { s: "" }.status(), StatusCode::BAD_REQUEST);
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn struct_variant() {
         Struct { s: &'a str },
     }
     let err = Error::Struct { s: "" };
-    assert_eq!(err.status(), StatusCode::InternalServerError);
+    assert_eq!(err.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(err.reason(), Some("Internal Server Error"));
 }
 
@@ -223,24 +223,24 @@ fn override_status_code_from_tuple_field_int() {
     }
 
     assert_eq!(
-        Error::One(StatusCode::Forbidden).status(),
-        StatusCode::Forbidden
+        Error::One(StatusCode::FORBIDDEN).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::Two((), StatusCode::Forbidden).status(),
-        StatusCode::Forbidden
+        Error::Two((), StatusCode::FORBIDDEN).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::First(StatusCode::Forbidden, (), ()).status(),
-        StatusCode::Forbidden
+        Error::First(StatusCode::FORBIDDEN, (), ()).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::Inbetween((), StatusCode::Forbidden, ()).status(),
-        StatusCode::Forbidden
+        Error::Inbetween((), StatusCode::FORBIDDEN, ()).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::Last((), (), StatusCode::Forbidden).status(),
-        StatusCode::Forbidden
+        Error::Last((), (), StatusCode::FORBIDDEN).status(),
+        StatusCode::FORBIDDEN
     );
 }
 
@@ -261,24 +261,24 @@ fn override_status_code_from_tuple_field_string() {
     }
 
     assert_eq!(
-        Error::One(StatusCode::Forbidden).status(),
-        StatusCode::Forbidden
+        Error::One(StatusCode::FORBIDDEN).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::Two((), StatusCode::Forbidden).status(),
-        StatusCode::Forbidden
+        Error::Two((), StatusCode::FORBIDDEN).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::First(StatusCode::Forbidden, (), ()).status(),
-        StatusCode::Forbidden
+        Error::First(StatusCode::FORBIDDEN, (), ()).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::Inbetween((), StatusCode::Forbidden, ()).status(),
-        StatusCode::Forbidden
+        Error::Inbetween((), StatusCode::FORBIDDEN, ()).status(),
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
-        Error::Last((), (), StatusCode::Forbidden).status(),
-        StatusCode::Forbidden
+        Error::Last((), (), StatusCode::FORBIDDEN).status(),
+        StatusCode::FORBIDDEN
     );
 }
 
@@ -295,26 +295,26 @@ fn override_status_code_from_struct_field() {
     }
     assert_eq!(
         Error::First {
-            a: StatusCode::Forbidden,
+            a: StatusCode::FORBIDDEN,
             b: (),
             c: (),
         }.status(),
-        StatusCode::Forbidden
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
         Error::Second {
             a: (),
-            b: StatusCode::Forbidden,
+            b: StatusCode::FORBIDDEN,
             c: (),
         }.status(),
-        StatusCode::Forbidden
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
         Error::Third {
             a: (),
             b: (),
-            c: StatusCode::Forbidden,
+            c: StatusCode::FORBIDDEN,
         }.status(),
-        StatusCode::Forbidden
+        StatusCode::FORBIDDEN
     );
 }

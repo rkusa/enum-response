@@ -1,6 +1,6 @@
-extern crate hyper;
+extern crate http;
 
-pub use hyper::StatusCode;
+pub use http::StatusCode;
 
 pub trait EnumResponse {
     fn status(&self) -> StatusCode;

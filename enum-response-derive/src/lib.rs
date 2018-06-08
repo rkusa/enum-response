@@ -1,15 +1,18 @@
+#![feature(proc_macro)]
+
 extern crate enum_response;
 extern crate proc_macro;
+extern crate proc_macro2;
 #[macro_use]
 extern crate quote;
 extern crate syn;
 
 use std::str::FromStr;
 
-use enum_response::StatusCode;
 use proc_macro::TokenStream;
-use quote::Tokens;
+use proc_macro2::{TokenStream as Tokens, Span};
 use syn::{Data, DataEnum, Fields, Ident, Lit, Meta, MetaList, MetaNameValue, NestedMeta};
+use quote::TokenStreamExt;
 
 #[proc_macro_derive(EnumResponse, attributes(response))]
 pub fn enum_from(input: TokenStream) -> TokenStream {
@@ -24,12 +27,13 @@ pub fn enum_from(input: TokenStream) -> TokenStream {
 }
 
 enum ValueSource {
+    Number(u16),
     String(String),
     TupleField(usize),
     StructField(String),
 }
 
-fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
+fn derive(ast: &syn::DeriveInput) -> TokenStream {
     let enum_name = &ast.ident;
     let variants = match ast.data {
         Data::Enum(DataEnum { ref variants, .. }) => variants,
@@ -83,16 +87,16 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                             }
                         };
 
-                        match name.as_ref() {
+                        match name.to_string().as_str() {
                             "status" => {
-                                status = Some(ValueSource::String(match val {
-                                    &Lit::Int(ref status) => status_from_u16(status.value() as u16),
+                                status = Some(match val {
+                                    &Lit::Int(ref status) => ValueSource::Number(status.value() as u16),
                                     &Lit::Str(ref name) => {
                                         let name = name.value();
                                         if let Ok(status) = u16::from_str(name.as_str()) {
-                                            status_from_u16(status)
+                                            ValueSource::Number(status)
                                         } else {
-                                            name
+                                            ValueSource::String(name)
                                         }
                                     }
                                     _ => {
@@ -101,7 +105,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                                              of type int or string"
                                         );
                                     }
-                                }));
+                                });
                             }
                             "status_field" => {
                                 match val {
@@ -167,10 +171,18 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
         // TODO handling of status and reason are redundant
 
         match status {
+            Some(ValueSource::Number(status)) => {
+                let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
+                // make sure it is a valid status code
+                ::enum_response::StatusCode::from_u16(status).unwrap();
+                status_patterns.push(quote!{
+                    #pattern => ::enum_response::StatusCode::from_u16(#status).unwrap(),
+                });
+            }
             Some(ValueSource::String(ref status)) => {
                 let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
-                let status = Ident::from(status.as_str());
-                status_patterns.push(quote! {
+                let status = Ident::new(status.as_str(), Span::call_site());
+                status_patterns.push(quote!{
                     #pattern => ::enum_response::StatusCode::#status,
                 });
             }
@@ -196,8 +208,8 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                 });
 
                 status_patterns.push(quote! {
-                    #enum_name::#variant_name(#(#fields),*) => status,
-                });
+                                    #enum_name::#variant_name(#(#fields),*) => status,
+                                });
             }
             Some(ValueSource::StructField(field_name)) => {
                 let fields = match variant.fields {
@@ -231,8 +243,8 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
             Some(ValueSource::String(reason)) => {
                 let pattern = variant_pattern(enum_name, variant_name, &variant.fields);
                 reason_patterns.push(quote! {
-                    #pattern => Some(#reason),
-                });
+                                    #pattern => Some(#reason),
+                                });
             }
             Some(ValueSource::TupleField(ix)) => {
                 let fields = match variant.fields {
@@ -284,13 +296,13 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                     );
                 }
             }
-            None => {}
+            _ => {}
         }
     }
 
     if status_patterns.len() < variants.len() {
         status_patterns.push(quote! {
-            _ => ::enum_response::StatusCode::InternalServerError,
+            _ => ::enum_response::StatusCode::INTERNAL_SERVER_ERROR,
         });
     }
 
@@ -306,7 +318,7 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
     let mut reason_tokens = Tokens::new();
     reason_tokens.append_all(reason_patterns);
 
-    quote! {
+    let tokens = quote! {
         impl #impl_generics ::enum_response::EnumResponse for #enum_name #ty_generics
             #where_clause
         {
@@ -322,17 +334,14 @@ fn derive(ast: &syn::DeriveInput) -> quote::Tokens {
                 }
             }
         }
-    }
-}
-
-fn status_from_u16(status: u16) -> String {
-    format!("{:?}", StatusCode::try_from(status).unwrap())
+    };
+    tokens.into()
 }
 
 fn variant_pattern(enum_name: &Ident, variant_name: &Ident, variant_data: &Fields) -> Tokens {
     match variant_data {
         &Fields::Unit => {
-            quote! { #enum_name::#variant_name }
+            quote!{ #enum_name::#variant_name }
         }
         &Fields::Unnamed(_) => {
             quote! { #enum_name::#variant_name(..) }

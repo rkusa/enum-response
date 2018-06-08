@@ -6,3 +6,5 @@ error: proc-macro derive panicked
   |
   = help: message: [error(reason_field = 1)]: No tuple field at 1 found for Tuple
 
+error: aborting due to previous error
+

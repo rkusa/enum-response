@@ -6,3 +6,5 @@ error: proc-macro derive panicked
   |
   = help: message: #[derive(EnumResponse)] can only be applied to enums. Test is not an enum.
 
+error: aborting due to previous error
+
