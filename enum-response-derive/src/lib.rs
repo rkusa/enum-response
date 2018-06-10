@@ -20,10 +20,7 @@ pub fn enum_from(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();
 
     // derive the implementations
-    let gen = derive(&ast);
-
-    // return the generated impl
-    gen.into()
+    derive(&ast)
 }
 
 enum ValueSource {
@@ -47,7 +44,7 @@ fn derive(ast: &syn::DeriveInput) -> TokenStream {
     let mut status_patterns = Vec::new();
     let mut reason_patterns = Vec::new();
 
-    'variants: for variant in variants {
+    for variant in variants {
         let variant_name = &variant.ident;
 
         let mut status = None;
@@ -90,8 +87,8 @@ fn derive(ast: &syn::DeriveInput) -> TokenStream {
                         match name.to_string().as_str() {
                             "status" => {
                                 status = Some(match val {
-                                    &Lit::Int(ref status) => ValueSource::Number(status.value() as u16),
-                                    &Lit::Str(ref name) => {
+                                    Lit::Int(ref status) => ValueSource::Number(status.value() as u16),
+                                    Lit::Str(ref name) => {
                                         let name = name.value();
                                         if let Ok(status) = u16::from_str(name.as_str()) {
                                             ValueSource::Number(status)
@@ -109,10 +106,10 @@ fn derive(ast: &syn::DeriveInput) -> TokenStream {
                             }
                             "status_field" => {
                                 match val {
-                                    &Lit::Int(ref ix) => {
+                                    Lit::Int(ref ix) => {
                                         status = Some(ValueSource::TupleField(ix.value() as usize));
                                     }
-                                    &Lit::Str(ref s) => {
+                                    Lit::Str(ref s) => {
                                         let s = s.value();
                                         status = Some(match usize::from_str(&s) {
                                             Ok(ix) => ValueSource::TupleField(ix as usize),
@@ -129,7 +126,7 @@ fn derive(ast: &syn::DeriveInput) -> TokenStream {
                             }
                             "reason" => {
                                 match val {
-                                    &Lit::Str(ref s) => {
+                                    Lit::Str(ref s) => {
                                         reason = Some(ValueSource::String(s.value()));
                                     }
                                     _ => {
@@ -142,10 +139,10 @@ fn derive(ast: &syn::DeriveInput) -> TokenStream {
                             }
                             "reason_field" => {
                                 match val {
-                                    &Lit::Int(ref ix) => {
+                                    Lit::Int(ref ix) => {
                                         reason = Some(ValueSource::TupleField(ix.value() as usize));
                                     }
-                                    &Lit::Str(ref s) => {
+                                    Lit::Str(ref s) => {
                                         let s = s.value();
                                         reason = Some(match usize::from_str(&s) {
                                             Ok(ix) => ValueSource::TupleField(ix as usize),
@@ -340,13 +337,13 @@ fn derive(ast: &syn::DeriveInput) -> TokenStream {
 
 fn variant_pattern(enum_name: &Ident, variant_name: &Ident, variant_data: &Fields) -> Tokens {
     match variant_data {
-        &Fields::Unit => {
+        Fields::Unit => {
             quote!{ #enum_name::#variant_name }
         }
-        &Fields::Unnamed(_) => {
+        Fields::Unnamed(_) => {
             quote! { #enum_name::#variant_name(..) }
         }
-        &Fields::Named(_) => {
+        Fields::Named(_) => {
             quote! { #enum_name::#variant_name { .. } }
         }
     }
